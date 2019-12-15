@@ -49,6 +49,7 @@ runcmd(struct cmd *cmd)
   struct redircmd *rcmd;
   int bin_count;
   char path[1024];
+  int found;
 
   if(cmd == 0)
     _exit(0);
@@ -58,15 +59,17 @@ runcmd(struct cmd *cmd)
     fprintf(stderr, "unknown runcmd\n");
     _exit(-1); 
   case ' ':
+    found = 0;
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       _exit(0);
     //fprintf(stderr, "exec not implemented\n");
     // Your code here ...
     if (access(ecmd->argv[0], F_OK) == 0) {
-        execv(ecmd->argv[0], ecmd->argv);
+        execv(ecmd->argv[1], ecmd->argv);
+        found = 1;
     } else {
-        const char *bin_path[] = {"/bin/"};
+        const char *bin_path[] = {"/bin/", "/usr/bin/"};
         bin_count = sizeof(bin_path) / sizeof(bin_path[0]);
         for (int i = 0; i < bin_count; i++) {
             memset(path, '0', sizeof(path));
@@ -74,25 +77,58 @@ runcmd(struct cmd *cmd)
             strcat(path, ecmd->argv[0]);
             if (access(path, F_OK) == 0) {
                 execv(path, ecmd->argv);
+                found = 1;
             } else {
-                fprintf(stderr, "%s: Command not found\n", ecmd->argv[0]);
+                found = 0;
             }
         }  
+    }
+    if (found == 0) {
+        fprintf(stderr, "%s: Command not found\n", ecmd->argv[0]);
     }
     break;
 
   case '>':
   case '<':
     rcmd = (struct redircmd*)cmd;
-    fprintf(stderr, "redir not implemented\n");
+    //fprintf(stderr, "redir not implemented\n");
     // Your code here ...
+    close(rcmd->fd);
+    if (open(rcmd->file, rcmd->flags, S_IWUSR|S_IRUSR) < 0) {
+        fprintf(stderr, "file:%s no exist\n",rcmd->file);
+        exit(0);
+    }
+    rcmd->type = ' ';
     runcmd(rcmd->cmd);
     break;
 
   case '|':
+    pipe(p);
     pcmd = (struct pipecmd*)cmd;
-    fprintf(stderr, "pipe not implemented\n");
+    //fprintf(stderr, "pipe not implemented\n");
     // Your code here ...
+    if (fork1() == 0) {
+    // left pipe
+    // standard output is redirected to write end of pipe
+        close(1);
+        dup(p[1]);
+        close(p[0]);
+        close(p[1]);
+        runcmd(pcmd->left);
+    }
+    wait(&r);
+
+    if (fork1() == 0) {
+        // standard input is redirected to read end of pipe
+        close(0);
+        dup(p[0]);
+        close(p[0]);
+        close(p[1]);
+        runcmd(pcmd->right);
+    }
+    close(p[0]);
+    close(p[1]);
+    wait(&r);
     break;
   }    
   _exit(0);
