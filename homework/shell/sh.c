@@ -8,8 +8,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
-// Simplifed xv6 shell.
-
+// Simplifed xv6 shell.  
 #define MAXARGS 10
 
 // All commands have at least a type. Have looked at the type, the code
@@ -48,6 +47,8 @@ runcmd(struct cmd *cmd)
   struct execcmd *ecmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
+  int bin_count;
+  char path[1024];
 
   if(cmd == 0)
     _exit(0);
@@ -55,14 +56,29 @@ runcmd(struct cmd *cmd)
   switch(cmd->type){
   default:
     fprintf(stderr, "unknown runcmd\n");
-    _exit(-1);
-
+    _exit(-1); 
   case ' ':
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       _exit(0);
-    fprintf(stderr, "exec not implemented\n");
+    //fprintf(stderr, "exec not implemented\n");
     // Your code here ...
+    if (access(ecmd->argv[0], F_OK) == 0) {
+        execv(ecmd->argv[0], ecmd->argv);
+    } else {
+        const char *bin_path[] = {"/bin/"};
+        bin_count = sizeof(bin_path) / sizeof(bin_path[0]);
+        for (int i = 0; i < bin_count; i++) {
+            memset(path, '0', sizeof(path));
+            strcpy(path, bin_path[i]);
+            strcat(path, ecmd->argv[0]);
+            if (access(path, F_OK) == 0) {
+                execv(path, ecmd->argv);
+            } else {
+                fprintf(stderr, "%s: Command not found\n", ecmd->argv[0]);
+            }
+        }  
+    }
     break;
 
   case '>':
