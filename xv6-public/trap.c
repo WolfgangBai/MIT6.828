@@ -54,6 +54,19 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
     }
+    if(myproc() != 0 && (tf->cs & 3) == 3){
+        myproc()->ticks++;
+        // 没有alarm任务的proc, 不会进入以下if,因为alarminterval为0
+        if(myproc()->ticks == myproc()->alarminterval) {
+            myproc()->ticks = 0;
+            // 为什么不能像下面这样调用函数
+            //myproc()->alarmhandler();
+            tf->esp -= 4;
+            // eip压栈
+            *(uint *)(tf->esp) = tf->eip;
+            tf->eip = (uint)myproc()->alarmhandler;
+        }
+    }
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
